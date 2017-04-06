@@ -3,6 +3,7 @@ use std::ops::{Index, IndexMut};
 use float_cmp::ApproxEqUlps;
 
 use base::FLOAT_TOLERANCE;
+use base::model::Emitter;
 
 #[derive(Debug, PartialEq)]
 pub struct Matrix {
@@ -33,6 +34,27 @@ impl Matrix {
         } else {
             (n, self.state[0].len())
         }
+    }
+}
+
+/// The Emitter implementation for Matrix assumes the matrix's rows are each row stochastic
+/// distributions for a hidden state, and the observations are indexes of observation classes, so
+/// m[i][o] is the probability of state i emitting observation o.
+impl Emitter for Matrix {
+    type Observation = usize;
+
+    fn emitp(&self, state: usize, observation: Self::Observation) -> Result<f64, String> {
+        let (states, emissions) = self.dims();
+        if state < states && observation < emissions {
+            Ok(self.state[state][observation])
+        } else {
+            Err(format!("no emission entry ay {}x{}; dist table is {}x{}",
+                        state,
+                        observation,
+                        states,
+                        emissions))
+        }
+
     }
 }
 
