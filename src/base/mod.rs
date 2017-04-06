@@ -2,10 +2,10 @@
 
 mod matrix;
 mod model;
-
-//use float_cmp::ApproxEqUlps;
+mod train;
 
 pub use self::matrix::Matrix;
-pub use self::model::Model;
+pub use self::model::{Model, Emitter};
+pub use self::train::Train;
 
 const FLOAT_TOLERANCE: i64 = 1;
