@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 
 use float_cmp::ApproxEqUlps;
 
-const FLOAT_TOLERANCE: i64 = 1;
+use base::FLOAT_TOLERANCE;
 
 #[derive(Debug, PartialEq)]
 pub struct Matrix {
@@ -16,8 +16,8 @@ impl Matrix {
 
     pub fn with_dims(n: usize, m: usize) -> Self {
         let mut state: Vec<Vec<f64>> = Vec::with_capacity(n);
-        for row in 0..n {
-            state[row] = [0.0, 0.0].iter().cloned().cycle().take(m).collect();
+        for _ in 0..n {
+            state.push([0.0, 0.0].iter().cloned().cycle().take(m).collect());
         }
         Matrix { state: state }
     }
