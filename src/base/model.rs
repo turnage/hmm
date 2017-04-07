@@ -8,15 +8,15 @@ pub trait Emitter {
     /// emitp returns the probability of a given state emitting the given observation.
     /// If the hidden state or observation is not recognized, the emitting should return an error
     /// explaining why it is incompatible with the emitter.
-    fn emitp(&self, state: usize, observation: Self::Observation) -> Result<f64, String>;
+    fn emitp(&self, state: usize, observation: &Self::Observation) -> Result<f64, String>;
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Model<E> {
-    n: usize,
-    init: Vec<f64>,
-    trans: Matrix,
-    emit: E,
+    pub n: usize,
+    pub init: Vec<f64>,
+    pub trans: Matrix,
+    pub emit: E,
 }
 
 impl<E> Model<E> {
@@ -51,14 +51,7 @@ impl<E> Model<E> {
 mod test {
     use super::*;
 
-    fn test_model() -> Model<Matrix> {
-        Model {
-            n: 2,
-            init: vec![0.4, 0.6],
-            trans: Matrix::from(vec![vec![0.7, 0.3], vec![0.4, 0.6]]),
-            emit: Matrix::from(vec![vec![0.1, 0.4, 0.5], vec![0.7, 0.2, 0.1]]),
-        }
-    }
+    use base::test_model;
 
     #[test]
     fn from() {

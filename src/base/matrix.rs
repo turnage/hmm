@@ -43,14 +43,14 @@ impl Matrix {
 impl Emitter for Matrix {
     type Observation = usize;
 
-    fn emitp(&self, state: usize, observation: Self::Observation) -> Result<f64, String> {
+    fn emitp(&self, state: usize, observation: &Self::Observation) -> Result<f64, String> {
         let (states, emissions) = self.dims();
-        if state < states && observation < emissions {
-            Ok(self.state[state][observation])
+        if state < states && *observation < emissions {
+            Ok(self.state[state][*observation])
         } else {
             Err(format!("no emission entry ay {}x{}; dist table is {}x{}",
                         state,
-                        observation,
+                        *observation,
                         states,
                         emissions))
         }
