@@ -1,46 +1,59 @@
-use base::{Matrix, Model, Emitter};
+use std::f64;
+
+use base::{Model, Emitter, scale};
 
 pub struct Train;
 
+#[derive(Debug)]
+struct Path {
+    states: Vec<usize>,
+    p: f64,
+}
+
 impl Train {
-    /// p returns the probability of the observation sequence using the given alpha and
-    /// normalization coefficient vector.
-    pub fn p(alpha: &Matrix, normal_coefs: &Vec<f64>) -> Result<f64, String> {
-        let (t, _) = alpha.dims();
-        if t == 0 || normal_coefs.is_empty() {
-            Err(format!("alpha matrix or normalization coefficients missing"))
-        } else if t != normal_coefs.len() {
-            Err(format!("need {} normalization coefficients; have {}",
-                        t,
-                        normal_coefs.len()))
-        } else {
-            Ok(normal_coefs.iter().map(|v| -1.0 * v.log2()).sum::<f64>().exp2())
+    pub fn most_probable_sequence<E: Emitter>(obs: &Vec<E::Observation>,
+                                              model: &Model<E>)
+                                              -> Result<Vec<usize>, String> {
+        let mut paths = Vec::new();
+        for (t, o) in obs.iter().enumerate() {
+            for (i, pi) in model.init.iter().enumerate() {
+                if t == 0 {
+                    paths.push(Path {
+                        states: Vec::new(),
+                        p: model.emit.emitp(i, o).map(|p| p * pi)?,
+                    })
+                } else {
+                    let emitp = model.emit.emitp(i, o)?;
+                    let connect = |p: f64, prev: usize| p * model.trans[prev][i] * emitp;
+                    let (prev, p) = Train::best_path(&paths, connect);
+                    if prev != i {
+                        paths[i].states = paths[prev].states.to_vec();
+                    }
+                    paths[i].states.push(prev);
+                    paths[i].p = p;
+                }
+            }
         }
+
+        let (path_end, _) = Train::best_path(&paths, |p: f64, _: usize| p);
+        paths[path_end].states.push(path_end);
+
+        Ok(paths.swap_remove(path_end).states)
     }
 
-    /// alpha_pass computes the alpha function and normalization coefficients for the train's
-    /// observations.
-    pub fn alpha_pass<E: Emitter>(obs: &Vec<E::Observation>,
-                                  model: &Model<E>)
-                                  -> Result<(Matrix, Vec<f64>), String> {
-        let (tlen, n) = (obs.len(), model.n);
-        let mut raw_alpha = Matrix::with_dims(tlen, n);
-        let mut normal_alpha = Matrix::with_dims(tlen, n);
-        let mut normal_coefs = Vec::with_capacity(obs.len());
-        let trans = |i| if i == 0 { 1.0 } else { model.trans[i - 1][i] };
-        for (t, o) in obs.iter().enumerate() {
-            let mut normalizer = 0.0;
-            for (i, pi) in model.init.iter().enumerate() {
-                let reducer = if t == 0 { pi * trans(i) } else { trans(i) };
-                raw_alpha[t][i] = model.emit.emitp(i, o).map(|v| v * reducer)?;
-                normalizer += raw_alpha[t][i];
-            }
-            normal_coefs.push(normalizer.recip());
-            for i in 0..model.n {
-                normal_alpha[t][i] = normal_coefs[t] * raw_alpha[t][i];
+    fn best_path<F>(ps: &Vec<Path>, f: F) -> (usize, f64)
+        where F: Fn(f64, usize) -> f64
+    {
+        let mut max_state = 0;
+        let mut max = f64::MIN;
+        for (i, p) in ps.iter().enumerate() {
+            let p = f(p.p, i);
+            if p > max {
+                max = p;
+                max_state = i;
             }
         }
-        Ok((normal_alpha, normal_coefs))
+        (max_state, max)
     }
 }
 
@@ -51,10 +64,10 @@ mod test {
     use base::test_model;
 
     #[test]
-    fn p() {
-        let (model, obs) = (test_model(), vec![0, 0, 0, 0]);
-        match Train::alpha_pass(&obs, &model) {
-            Ok((alpha, normal_coefs)) => println!("P: {:?}", Train::p(&alpha, &normal_coefs)),
+    fn delta() {
+        let (model, obs) = (test_model(), vec![0, 1, 0, 2]);
+        match Train::most_probable_sequence(&obs, &model) {
+            Ok(seq) => assert_eq!(seq, vec![1, 1, 1, 0]),
             Err(e) => panic!(e),
         }
     }
