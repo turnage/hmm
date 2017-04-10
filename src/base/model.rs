@@ -15,7 +15,7 @@ pub trait Emitter {
 pub struct Model<E> {
     pub n: usize,
     pub init: Vec<f64>,
-    pub trans: Matrix,
+    pub trans: Matrix<f64>,
     pub emit: E,
 }
 
@@ -23,7 +23,7 @@ impl<E> Model<E> {
     /// from returns a Model hmm from the initial distribution of N hidden states, probability
     /// matrix of hidden state transitions, and probability distributions of M possible emissions
     /// from each hidden state (traditionally denoted pi, a, and b respectively).
-    pub fn from(init: Vec<f64>, trans: Matrix, emit: E) -> Result<Self, String> {
+    pub fn from(init: Vec<f64>, trans: Matrix<f64>, emit: E) -> Result<Self, String> {
         let check = &|valid, error| if valid { Ok(()) } else { Err(error) };
         let (n, (trans_rows, trans_cols)) = (init.len(), trans.dims());
         check(init.iter().sum::<f64>().approx_eq_ulps(&1.0, FLOAT_TOLERANCE),
