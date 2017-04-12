@@ -4,7 +4,6 @@ use base::{Model, Emitter};
 
 pub struct Train;
 
-#[derive(Debug)]
 struct Path {
     states: Vec<usize>,
     p: f64,
