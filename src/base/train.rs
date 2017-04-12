@@ -1,6 +1,6 @@
 use std::f64;
 
-use base::{Matrix, Model, Emitter};
+use base::{Cube, Matrix, Model, Emitter};
 
 struct Path {
     states: Vec<usize>,
@@ -47,7 +47,6 @@ impl Train {
     }
 
     pub fn probability_of_sequence(alpha: &Alpha) -> f64 {
-        println!("COEFS: {:?}", alpha.coefs);
         alpha.coefs.iter().fold(0f64, |p: f64, c: &f64| p + c.log2()).exp2().recip()
     }
 
@@ -83,6 +82,64 @@ impl Train {
         }
 
         Ok(alpha)
+    }
+
+    pub fn beta<E: Emitter>(obs: &Vec<E::Observation>,
+                            model: &Model<E>,
+                            coefs: &Vec<f64>)
+                            -> Result<Matrix<f64>, String> {
+        let mut beta = Matrix::with_dims(obs.len(), model.n, 0f64);
+        for i in 0..model.n {
+            beta[obs.len() - 1][i] = coefs[obs.len() - 1];
+        }
+
+        for (t, o) in obs.iter().enumerate().skip(1).rev() {
+            for i in 0..model.n {
+                beta[t][i] = 0f64;
+                let emitp = model.emitter.emitp(i, o)?;
+                for j in 0..model.n {
+                    beta[t][i] += model.trans[i][j] * emitp * beta[t + 1][j];
+                }
+                beta[t][i] *= coefs[t];
+            }
+        }
+
+        Ok(beta)
+    }
+
+    /// gammas returns the gap gamma g(i,j) and unit gamma g(i).
+    pub fn gammas<E: Emitter>(obs: &Vec<E::Observation>,
+                              model: &Model<E>,
+                              alpha: &Matrix<f64>,
+                              beta: &Matrix<f64>)
+                              -> Result<(Cube<f64>, Matrix<f64>), String> {
+        let mut gamma = Matrix::with_dims(obs.len(), model.n, 0f64);
+        let mut gap_gamma = Cube::with_dims(obs.len(), model.n, model.n, 0f64);
+        for t in 0..(obs.len() - 2) {
+            let mut denom = 0f64;
+            for i in 0..model.n {
+                for j in 0..model.n {
+                    let emitp = model.emitter.emitp(i, &obs[t + 1])?;
+                    denom += alpha[t][i] * model.trans[i][j] * emitp * beta[t + 1][j];
+                }
+            }
+            for i in 0..model.n {
+                gamma[t][i] = 0f64;
+                for j in 0..model.n {
+                    let emitp = model.emitter.emitp(i, &obs[t + 1])?;
+                    gap_gamma[t][i][j] = alpha[t][i] * model.trans[i][j] * emitp * beta[t + 1][j] /
+                                         denom;
+                    gamma[t][i] += gap_gamma[t][i][j];
+                }
+            }
+        }
+
+        let denom = alpha[obs.len() - 1].iter().sum::<f64>();
+        for i in 0..model.n {
+            gamma[obs.len() - 1][i] = alpha[obs.len() - 1][i] / denom;
+        }
+
+        Ok((gap_gamma, gamma))
     }
 
     fn best_path<F>(ps: &Vec<Path>, f: F) -> (usize, f64)
