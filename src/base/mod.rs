@@ -8,7 +8,7 @@ pub use self::matrix::Matrix;
 pub use self::model::{Model, Emitter};
 pub use self::train::Train;
 
-const FLOAT_TOLERANCE: i64 = 1;
+const FLOAT_TOLERANCE: i64 = 2;
 
 /// test_model defines the discrete hmm used in Mark Stamp's HMM paper published by SJSU, which
 /// includes test results for the model problems which are used throughout this library. Follow
