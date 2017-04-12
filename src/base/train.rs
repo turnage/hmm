@@ -19,10 +19,10 @@ impl Train {
                 if t == 0 {
                     paths.push(Path {
                         states: Vec::new(),
-                        p: model.emit.emitp(i, o).map(|p| p.log2() + pi.log2())?,
+                        p: model.emitter.emitp(i, o).map(|p| p.log2() + pi.log2())?,
                     })
                 } else {
-                    let emitp = model.emit.emitp(i, o)?;
+                    let emitp = model.emitter.emitp(i, o)?;
                     let connect =
                         |p: f64, prev: usize| p + model.trans[prev][i].log2() + emitp.log2();
                     let (prev, p) = Train::best_path(&paths, connect);
