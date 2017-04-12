@@ -7,11 +7,6 @@ struct Path {
     p: f64,
 }
 
-pub struct Alpha {
-    normal: Matrix<f64>,
-    coefs: Vec<f64>,
-}
-
 pub struct Train;
 
 impl Train {
@@ -46,42 +41,42 @@ impl Train {
         Ok(paths.swap_remove(path_end).states)
     }
 
-    pub fn probability_of_sequence(alpha: &Alpha) -> f64 {
-        alpha.coefs.iter().fold(0f64, |p: f64, c: &f64| p + c.log2()).exp2().recip()
+    pub fn probability_of_sequence(coefs: &Vec<f64>) -> f64 {
+        coefs.iter().fold(0f64, |p: f64, c: &f64| p + c.log2()).exp2().recip()
     }
 
-    pub fn alpha<E: Emitter>(obs: &Vec<E::Observation>, model: &Model<E>) -> Result<Alpha, String> {
-        let mut alpha = Alpha {
-            normal: Matrix::with_dims(obs.len(), model.n, 0f64),
-            coefs: vec![0f64],
-        };
+    pub fn alpha<E: Emitter>(obs: &Vec<E::Observation>,
+                             model: &Model<E>)
+                             -> Result<(Matrix<f64>, Vec<f64>), String> {
+        let mut normal = Matrix::with_dims(obs.len(), model.n, 0f64);
+        let mut coefs = vec![0f64];
 
         for (i, pi) in model.init.iter().enumerate() {
-            alpha.normal[0][i] = pi * model.emitter.emitp(i, obs.first().unwrap())?;
-            alpha.coefs[0] += alpha.normal[0][i];
+            normal[0][i] = pi * model.emitter.emitp(i, obs.first().unwrap())?;
+            coefs[0] += normal[0][i];
         }
-        alpha.coefs[0] = alpha.coefs[0].recip();
+        coefs[0] = coefs[0].recip();
 
         for i in 0..model.n {
-            alpha.normal[0][i] *= alpha.coefs[0];
+            normal[0][i] *= coefs[0];
         }
 
         for (t, o) in obs.iter().enumerate().skip(1) {
-            alpha.coefs.push(0f64);
+            coefs.push(0f64);
             for i in 0..model.n {
                 for j in 0..model.n {
-                    alpha.normal[t][i] += alpha.normal[t - 1][j] * model.trans[j][i];
+                    normal[t][i] += normal[t - 1][j] * model.trans[j][i];
                 }
-                alpha.normal[t][i] *= model.emitter.emitp(i, o)?;
-                alpha.coefs[t] += alpha.normal[t][i];
+                normal[t][i] *= model.emitter.emitp(i, o)?;
+                coefs[t] += normal[t][i];
             }
-            alpha.coefs[t] = alpha.coefs[t].recip();
+            coefs[t] = coefs[t].recip();
             for i in 0..model.n {
-                alpha.normal[t][i] *= alpha.coefs[t];
+                normal[t][i] *= coefs[t];
             }
         }
 
-        Ok(alpha)
+        Ok((normal, coefs))
     }
 
     pub fn beta<E: Emitter>(obs: &Vec<E::Observation>,
