@@ -142,6 +142,52 @@ impl Train {
         Ok((gap_gamma, gamma))
     }
 
+    /// estimates the initial distribution of hidden states using gamma.
+    pub fn estimate_pi(gamma: &Matrix<f64>) -> Vec<f64> {
+        gamma[0].iter().cloned().collect()
+    }
+
+    /// estimates the transition matrix of hidden states using the gap_gamma and gamma.
+    pub fn estimate_trans(gap_gamma: &Cube<f64>, gamma: &Matrix<f64>) -> Matrix<f64> {
+        let (t, n) = gamma.dims();
+        let mut trans = Matrix::with_dims(n, n, 0f64);
+        for i in 0..n {
+            for j in 0..n {
+                let mut numer = 0f64;
+                let mut denom = 0f64;
+                for t in 0..(t - 1) {
+                    numer += gap_gamma[t][i][j];
+                    denom += gamma[t][i];
+                }
+                trans[i][j] = numer / denom;
+            }
+        }
+        trans
+    }
+
+    /// estimates a discrete emission matrix using gamma.
+    pub fn estimate_discrete_emissions(m: usize,
+                                       obs: Vec<usize>,
+                                       gamma: &Matrix<f64>)
+                                       -> Matrix<f64> {
+        let (n, t) = gamma.dims();
+        let mut emitter = Matrix::with_dims(n, m, 0f64);
+        for i in 0..n {
+            for j in 0..m {
+                let mut numer = 0f64;
+                let mut denom = 0f64;
+                for t in 0..t {
+                    if obs[t] == j {
+                        numer += gamma[t][i];
+                    }
+                    denom += gamma[t][i];
+                }
+                emitter[i][j] = numer / denom;
+            }
+        }
+        emitter
+    }
+
     fn best_path<F>(ps: &Vec<Path>, f: F) -> (usize, f64)
         where F: Fn(f64, usize) -> f64
     {
