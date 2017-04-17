@@ -1,14 +1,12 @@
 //! Base implements algorithms shared for all or many hmm architectures.
 
-mod cube;
 mod matrix;
 mod model;
-mod train;
+mod solve;
 
-pub use self::cube::Cube;
 pub use self::matrix::Matrix;
 pub use self::model::{Model, Emitter};
-pub use self::train::Train;
+pub use self::solve::Solve;
 
 const FLOAT_TOLERANCE: i64 = 2;
 
