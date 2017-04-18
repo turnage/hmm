@@ -1,6 +1,6 @@
 use std::f64;
 
-use base::{Matrix, Model, Starter, Emitter, Transor};
+use base::{Model, Starter, Emitter, Transor};
 
 struct Path<S> {
     states: Vec<S>,

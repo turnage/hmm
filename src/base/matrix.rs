@@ -1,8 +1,3 @@
-use std::ops::{Index, IndexMut};
-
-use float_cmp::ApproxEqUlps;
-
-use base::FLOAT_TOLERANCE;
 use base::model::{Starter, Emitter, Transor};
 
 pub trait Matrix {

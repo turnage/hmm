@@ -8,6 +8,7 @@ pub use self::matrix::Matrix;
 pub use self::model::{Model, Starter, Emitter, Transor};
 pub use self::solve::Solve;
 
+#[cfg(test)]
 const FLOAT_TOLERANCE: i64 = 2;
 
 /// test_model defines the discrete hmm used in Mark Stamp's HMM paper published by SJSU, which
