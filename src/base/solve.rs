@@ -1,97 +1,120 @@
 use std::f64;
 
-use base::{Matrix, Model, Emitter};
+use base::{Matrix, Model, Starter, Emitter, Transor};
 
-struct Path {
-    states: Vec<usize>,
+struct Path<S> {
+    states: Vec<S>,
     p: f64,
 }
 
 pub struct Solve;
 
 impl Solve {
-    pub fn most_probable_sequence<E: Emitter>(obs: &Vec<E::Observation>,
-                                              model: &Model<E>)
-                                              -> Result<Vec<usize>, String> {
+    pub fn most_probable_sequence<S, O, St, E, T>(obs: &Vec<O>,
+                                                  model: &Model<S, O, St, E, T>)
+                                                  -> Result<Vec<S>, String>
+        where S: Copy,
+              O: Copy,
+              St: Starter<S>,
+              E: Emitter<S, O>,
+              T: Transor<S>
+    {
+        let states = model.trans.states();
         let mut paths = Vec::new();
-        for (t, o) in obs.iter().enumerate() {
-            for (i, pi) in model.init.iter().enumerate() {
+        for (t, &o) in obs.iter().enumerate() {
+            for (i, &s) in states.iter().enumerate() {
                 if t == 0 {
+                    let pi = model.start.startp(s)?;
                     paths.push(Path {
                         states: Vec::new(),
-                        p: model.emitter.emitp(i, o).map(|p| p.log2() + pi.log2())?,
+                        p: model.emitter.emitp(s, o).map(|p| p.log2() + pi.log2())?,
                     })
                 } else {
-                    let emitp = model.emitter.emitp(i, o)?;
-                    let connect =
-                        |p: f64, prev: usize| p + model.trans[prev][i].log2() + emitp.log2();
-                    let (prev, p) = Solve::best_path(&paths, connect);
-                    if prev != i {
-                        paths[i].states = paths[prev].states.to_vec();
+                    let emitp = model.emitter.emitp(s, o)?;
+                    let connect = |p: f64, prev: S| {
+                        let tp = model.trans.transp(prev, s)?;
+                        Ok(p + tp.log2() + emitp.log2())
+                    };
+                    let (prev_path, prev_state, p) = Solve::best_path(&paths, &states, connect)?;
+                    if prev_path != i {
+                        paths[i].states = paths[prev_path].states.to_vec();
                     }
-                    paths[i].states.push(prev);
+                    paths[i].states.push(prev_state);
                     paths[i].p = p;
                 }
             }
         }
 
-        let (path_end, _) = Solve::best_path(&paths, |p: f64, _: usize| p);
-        paths[path_end].states.push(path_end);
+        let (path_end, last_state, _) = Solve::best_path(&paths, &states, |p: f64, _: S| Ok(p))?;
+        paths[path_end].states.push(last_state);
 
         Ok(paths.swap_remove(path_end).states)
+    }
+
+    fn best_path<F, S: Copy>(ps: &Vec<Path<S>>,
+                             states: &Vec<S>,
+                             f: F)
+                             -> Result<(usize, S, f64), String>
+        where F: Fn(f64, S) -> Result<f64, String>
+    {
+        let mut max_path = 0;
+        let mut max_state = states[max_path];
+        let mut max = f64::MIN;
+        for (i, p) in ps.iter().enumerate() {
+            let p = f(p.p, states[i])?;
+            if p > max {
+                max = p;
+                max_state = states[i];
+                max_path = i;
+            }
+        }
+        Ok((max_path, max_state, max))
     }
 
     pub fn probability_of_sequence(coefs: &Vec<f64>) -> f64 {
         coefs.iter().fold(0f64, |p: f64, c: &f64| p + c.log2()).exp2().recip()
     }
 
-    pub fn alpha<E: Emitter>(obs: &Vec<E::Observation>,
-                             model: &Model<E>)
-                             -> Result<(Matrix<f64>, Vec<f64>), String> {
-        let mut normal = Matrix::with_dims(obs.len(), model.n, 0f64);
+    pub fn alpha<S, O, St, E, T>(obs: &Vec<O>,
+                                 model: &Model<S, O, St, E, T>)
+                                 -> Result<(Vec<Vec<f64>>, Vec<f64>), String>
+        where S: Copy,
+              O: Copy,
+              St: Starter<S>,
+              E: Emitter<S, O>,
+              T: Transor<S>
+    {
+        let states = model.trans.states();
+        let mut normal = vec![vec![0f64; states.len()]; obs.len()];
         let mut coefs = vec![0f64];
 
-        for (i, pi) in model.init.iter().enumerate() {
-            normal[0][i] = pi * model.emitter.emitp(i, obs.first().unwrap())?;
+        for (i, &s) in states.iter().enumerate() {
+            let pi = model.start.startp(s)?;
+            normal[0][i] = pi * model.emitter.emitp(s, obs[0])?;
             coefs[0] += normal[0][i];
         }
         coefs[0] = coefs[0].recip();
 
-        for i in 0..model.n {
+        for i in 0..states.len() {
             normal[0][i] *= coefs[0];
         }
 
-        for (t, o) in obs.iter().enumerate().skip(1) {
+        for (t, &o) in obs.iter().enumerate().skip(1) {
             coefs.push(0f64);
-            for i in 0..model.n {
-                for j in 0..model.n {
-                    normal[t][i] += normal[t - 1][j] * model.trans[j][i];
+            for (i, &a) in states.iter().enumerate() {
+                for (j, &b) in states.iter().enumerate() {
+                    normal[t][i] += normal[t - 1][j] * model.trans.transp(b, a)?;
                 }
-                normal[t][i] *= model.emitter.emitp(i, o)?;
+                normal[t][i] *= model.emitter.emitp(a, o)?;
                 coefs[t] += normal[t][i];
             }
             coefs[t] = coefs[t].recip();
-            for i in 0..model.n {
+            for i in 0..states.len() {
                 normal[t][i] *= coefs[t];
             }
         }
 
         Ok((normal, coefs))
-    }
-
-    fn best_path<F>(ps: &Vec<Path>, f: F) -> (usize, f64)
-        where F: Fn(f64, usize) -> f64
-    {
-        let mut max_state = 0;
-        let mut max = f64::MIN;
-        for (i, p) in ps.iter().enumerate() {
-            let p = f(p.p, i);
-            if p > max {
-                max = p;
-                max_state = i;
-            }
-        }
-        (max_state, max)
     }
 }
 

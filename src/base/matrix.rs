@@ -3,58 +3,46 @@ use std::ops::{Index, IndexMut};
 use float_cmp::ApproxEqUlps;
 
 use base::FLOAT_TOLERANCE;
-use base::model::Emitter;
+use base::model::{Starter, Emitter, Transor};
 
-#[derive(Debug, PartialEq)]
-pub struct Matrix<T> {
-    state: Vec<Vec<T>>,
+pub trait Matrix {
+    fn dimensions(&self) -> (usize, usize);
 }
 
-impl<T> Matrix<T> {
-    pub fn from(state: Vec<Vec<T>>) -> Self {
-        Matrix { state: state }
-    }
-
-    pub fn dims(&self) -> (usize, usize) {
-        let n = self.state.len();
-        if n == 0 {
+impl Matrix for Vec<Vec<f64>> {
+    fn dimensions(&self) -> (usize, usize) {
+        if self.len() == 0 {
             (0, 0)
         } else {
-            (n, self.state[0].len())
+            (self.len(), self[0].len())
         }
     }
 }
 
-impl<T: Copy> Matrix<T> {
-    pub fn with_dims(n: usize, m: usize, default: T) -> Self {
-        let mut state: Vec<Vec<T>> = Vec::with_capacity(n);
-        for _ in 0..n {
-            state.push([default].iter().cloned().cycle().take(m).collect());
+/// The Starter implementation for a vector assumes the vector is a stochastic distribution of
+/// starting probabilities such that v[i] is the probability that state i begins a sequence.
+impl Starter<usize> for Vec<f64> {
+    fn startp(&self, s: usize) -> Result<f64, String> {
+        if s < self.len() {
+            Ok(self[s])
+        } else {
+            Err(format!("no start entry for {}; have {} entries", s, self.len()))
         }
-        Matrix { state: state }
     }
 }
 
-impl Matrix<f64> {
-    pub fn row_stochastic(&self) -> bool {
-        self.state.iter().all(|row| row.iter().sum::<f64>().approx_eq_ulps(&1.0, FLOAT_TOLERANCE))
-    }
-}
-
-/// The Emitter implementation for Matrix assumes the matrix's rows are each row stochastic
+/// The Emitter implementation for a matrix assumes the matrix's rows are each stochastic
 /// distributions for a hidden state, and the observations are indexes of observation classes, so
 /// m[i][o] is the probability of state i emitting observation o.
-impl Emitter for Matrix<f64> {
-    type Observation = usize;
-
-    fn emitp(&self, state: usize, observation: &Self::Observation) -> Result<f64, String> {
-        let (states, emissions) = self.dims();
-        if state < states && *observation < emissions {
-            Ok(self.state[state][*observation])
+impl Emitter<usize, usize> for Vec<Vec<f64>> {
+    fn emitp(&self, state: usize, observation: usize) -> Result<f64, String> {
+        let (states, emissions) = self.dimensions();
+        if state < states && observation < emissions {
+            Ok(self[state][observation])
         } else {
-            Err(format!("no emission entry ay {}x{}; dist table is {}x{}",
+            Err(format!("no emission entry at {}x{}; dist table is {}x{}",
                         state,
-                        *observation,
+                        observation,
                         states,
                         emissions))
         }
@@ -62,27 +50,24 @@ impl Emitter for Matrix<f64> {
     }
 }
 
-impl<T> Index<usize> for Matrix<T> {
-    type Output = Vec<T>;
-
-    fn index(&self, i: usize) -> &Self::Output {
-        &self.state[i]
-    }
-}
-
-impl<T> IndexMut<usize> for Matrix<T> {
-    fn index_mut(&mut self, i: usize) -> &mut Self::Output {
-        &mut self.state[i]
-    }
-}
-
-#[cfg(test)]
-impl<T: Clone> Clone for Matrix<T> {
-    fn clone(&self) -> Matrix<T> {
-        let mut rows = Vec::new();
-        for i in 0..self.state.len() {
-            rows.push(self.state[i].clone())
+/// The Transor implementation for a matrix assumes each row is a stochastic distribution of
+/// transition probabilities to next states; such that m[a][b] is the probability of transitioning
+/// from state a to state b.
+impl Transor<usize> for Vec<Vec<f64>> {
+    fn transp(&self, a: usize, b: usize) -> Result<f64, String> {
+        let (states, _) = self.dimensions();
+        if a < states && b < states {
+            Ok(self[a][b])
+        } else {
+            Err(format!("no transition entry at {}x{}; dist table is {}x{}",
+                        a,
+                        b,
+                        states,
+                        states))
         }
-        Matrix::from(rows)
+    }
+
+    fn states(&self) -> Vec<usize> {
+        (0..self.len()).collect()
     }
 }
