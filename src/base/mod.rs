@@ -2,6 +2,7 @@
 
 mod matrix;
 mod model;
+mod train;
 mod solve;
 
 pub use self::matrix::Matrix;
