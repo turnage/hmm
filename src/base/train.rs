@@ -4,6 +4,17 @@ use std::hash::Hash;
 
 use base::{Model, Starter, Emitter, Transor};
 
+pub fn discrete<S: Copy + Eq + Hash, O: Copy + Eq + Hash>
+    (paths: &Vec<Vec<(S, O)>>)
+     -> Model<S, O, HashMap<S, f64>, HashMap<S, HashMap<O, f64>>, HashMap<S, HashMap<S, f64>>> {
+    let mut train = Discrete::new();
+    for path in paths.iter() {
+        train.observe_state_path(path);
+    }
+    train.stochast();
+    train.model()
+}
+
 struct Discrete<S: Copy, O: Copy> {
     start: HashMap<S, f64>,
     emit: HashMap<S, HashMap<O, f64>>,
@@ -23,11 +34,6 @@ impl<S: Copy + Eq + Hash, O: Copy + Eq + Hash> Discrete<S, O> {
         (self)
          -> Model<S, O, HashMap<S, f64>, HashMap<S, HashMap<O, f64>>, HashMap<S, HashMap<S, f64>>> {
         Model::from(self.start, self.emit, self.trans)
-    }
-
-    fn learn_state_path(&mut self, points: &Vec<(S, O)>) {
-        self.observe_state_path(points);
-        self.stochast();
     }
 
     fn observe_state_path(&mut self, points: &Vec<(S, O)>) {

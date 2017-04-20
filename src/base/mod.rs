@@ -1,8 +1,8 @@
 //! Base implements algorithms shared for all or many hmm architectures.
 
+pub mod train;
 mod matrix;
 mod model;
-mod train;
 mod solve;
 
 pub use self::matrix::Matrix;
@@ -10,7 +10,7 @@ pub use self::model::{Model, Starter, Emitter, Transor};
 pub use self::solve::Solve;
 
 #[cfg(test)]
-const FLOAT_TOLERANCE: i64 = 2;
+pub const FLOAT_TOLERANCE: i64 = 2;
 
 /// test_model defines the discrete hmm used in Mark Stamp's HMM paper published by SJSU, which
 /// includes test results for the model problems which are used throughout this library. Follow
