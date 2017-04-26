@@ -33,7 +33,11 @@ impl Solve {
                     let emitp = model.emitter.emitp(s, o)?;
                     let connect = |p: f64, prev: S| {
                         let tp = model.trans.transp(prev, s)?;
-                        Ok(p + tp.log2() + emitp.log2())
+                        if tp == 0f64 || emitp == 0f64 {
+                            Ok(None)
+                        } else {
+                            Ok(Some(p + tp.log2() + emitp.log2()))
+                        }
                     };
                     let (prev_path, prev_state, p) = Solve::best_path(&paths, &states, connect)?;
                     if prev_path != i {
@@ -45,7 +49,8 @@ impl Solve {
             }
         }
 
-        let (path_end, last_state, _) = Solve::best_path(&paths, &states, |p: f64, _: S| Ok(p))?;
+        let (path_end, last_state, _) =
+            Solve::best_path(&paths, &states, |p: f64, _: S| Ok(Some(p)))?;
         paths[path_end].states.push(last_state);
 
         Ok(paths.swap_remove(path_end).states)
@@ -55,17 +60,18 @@ impl Solve {
                              states: &Vec<S>,
                              f: F)
                              -> Result<(usize, S, f64), String>
-        where F: Fn(f64, S) -> Result<f64, String>
+        where F: Fn(f64, S) -> Result<Option<f64>, String>
     {
         let mut max_path = 0;
         let mut max_state = states[max_path];
         let mut max = f64::MIN;
         for (i, p) in ps.iter().enumerate() {
-            let p = f(p.p, states[i])?;
-            if p > max {
-                max = p;
-                max_state = states[i];
-                max_path = i;
+            if let Some(p) = f(p.p, states[i])? {
+                if p > max {
+                    max = p;
+                    max_state = states[i];
+                    max_path = i;
+                }
             }
         }
         Ok((max_path, max_state, max))
