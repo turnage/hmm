@@ -3,40 +3,9 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Label {
-    NonCoding,
-    StartCodon1,
-    StartCodon2,
-    StartCodon3,
-    InternalCodon1(usize),
-    InternalCodon2(usize),
-    InternalCodon3(usize),
-    StopCodon1(usize),
-    StopCodon2(usize),
-    StopCodon3(usize),
-    Invalid,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Base {
-    A,
-    C,
-    T,
-    G,
-}
-
-impl Base {
-    fn from(c: char) -> Result<Base, String> {
-        match c {
-            'a' => Ok(Base::A),
-            'c' => Ok(Base::C),
-            't' => Ok(Base::T),
-            'g' => Ok(Base::G),
-            x => Err(format!("{} is not a valid dna base", x)),
-        }
-    }
-}
+use ecoli::corpus::base::Base;
+use ecoli::corpus::labeler::Label;
+use ecoli::corpus::labeler;
 
 #[derive(Debug, PartialEq)]
 pub struct Sequence {
@@ -96,11 +65,11 @@ impl Sequence {
             let (start, end) = range.range;
             let bases = &dna[start..end];
             let mut range_emissions = match range.class {
-                LabelClass::NonCoding => Labeler::noncoding(bases),
-                LabelClass::StartCodon => Labeler::start_codon(bases),
-                LabelClass::StopCodon => Labeler::stop_codon(bases, &mut stop_codon_table),
+                LabelClass::NonCoding => labeler::noncoding(bases),
+                LabelClass::StartCodon => labeler::start_codon(bases),
+                LabelClass::StopCodon => labeler::stop_codon(bases, &mut stop_codon_table),
                 LabelClass::InternalCodon => {
-                    Labeler::internal_codons(bases, &mut internal_codon_table)
+                    labeler::internal_codons(bases, &mut internal_codon_table)
                 }
             };
             emissions.append(&mut range_emissions);
@@ -201,71 +170,12 @@ impl fmt::Display for Sequence {
     }
 }
 
-struct Labeler;
-
-impl Labeler {
-    fn noncoding(bases: &[Base]) -> Vec<(Label, Base)> {
-        bases.iter().cloned().map(|b| (Label::NonCoding, b)).collect()
-    }
-
-    fn start_codon(bases: &[Base]) -> Vec<(Label, Base)> {
-        vec![(Label::StartCodon1, bases[0]),
-             (Label::StartCodon2, bases[1]),
-             (Label::StartCodon3, bases[2])]
-    }
-
-    fn internal_codons(bases: &[Base],
-                       instances: &mut HashMap<(Base, Base, Base), usize>)
-                       -> Vec<(Label, Base)> {
-        Labeler::multi_instance_codons(bases, instances, |i, k| match i {
-            0 => Label::InternalCodon1(k),
-            1 => Label::InternalCodon2(k),
-            2 => Label::InternalCodon3(k),
-            _ => Label::Invalid,
-        })
-    }
-
-    fn stop_codon(bases: &[Base],
-                  instances: &mut HashMap<(Base, Base, Base), usize>)
-                  -> Vec<(Label, Base)> {
-        Labeler::multi_instance_codons(bases, instances, |i, k| match i {
-            0 => Label::StopCodon1(k),
-            1 => Label::StopCodon2(k),
-            2 => Label::StopCodon3(k),
-            _ => Label::Invalid,
-        })
-    }
-
-    fn multi_instance_codons<F>(bases: &[Base],
-                                instances: &mut HashMap<(Base, Base, Base), usize>,
-                                f: F)
-                                -> Vec<(Label, Base)>
-        where F: Fn(usize, usize) -> Label
-    {
-        let mut emissions = Vec::new();
-        for codon in bases.chunks(3) {
-            let key = (codon[0], codon[1], codon[2]);
-            let instance = if let Some(&instance) = instances.get(&key) {
-                instance
-            } else {
-                let instance = instances.len();
-                instances.insert(key, instance);
-                instance
-            };
-            for i in 0..3 {
-                emissions.push((f(i, instance), codon[i]))
-            }
-        }
-        emissions
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
-    fn sequence_from() {
+    fn from() {
         assert_eq!("1\t2800\t[190, 255] [337, 2799]".parse::<Sequence>(),
                    Ok(Sequence {
                        start: 0,
@@ -275,7 +185,7 @@ mod test {
     }
 
     #[test]
-    fn sequence_label_dna() {
+    fn label_dna() {
         assert_eq!(Sequence {
                            start: 0,
                            end: 14,
@@ -302,22 +212,7 @@ mod test {
     }
 
     #[test]
-    fn labeler_internal_codons() {
-        let mut unique_checker = HashMap::new();
-        unique_checker.insert((Base::A, Base::C, Base::C), 0);
-        assert_eq!(Labeler::internal_codons(&[Base::A, Base::C, Base::C, Base::A, Base::A,
-                                              Base::A],
-                                            &mut unique_checker),
-                   vec![(Label::InternalCodon1(0), Base::A),
-                        (Label::InternalCodon2(0), Base::C),
-                        (Label::InternalCodon3(0), Base::C),
-                        (Label::InternalCodon1(1), Base::A),
-                        (Label::InternalCodon2(1), Base::A),
-                        (Label::InternalCodon3(1), Base::A)]);
-    }
-
-    #[test]
-    fn sequence_labeled_ranges() {
+    fn labeled_ranges() {
         assert_eq!(Sequence {
                            start: 0,
                            end: 1000,
@@ -363,7 +258,7 @@ mod test {
     }
 
     #[test]
-    fn sequence_noncoding_ranges() {
+    fn noncoding_ranges() {
         assert_eq!(Sequence {
                            start: 0,
                            end: 1000,
@@ -381,7 +276,7 @@ mod test {
     }
 
     #[test]
-    fn sequence_internal_codon_ranges() {
+    fn internal_codon_ranges() {
         assert_eq!(Sequence {
                            start: 0,
                            end: 1000,
@@ -392,7 +287,7 @@ mod test {
     }
 
     #[test]
-    fn sequence_display() {
+    fn display() {
         assert_eq!(format!("{}",
                            Sequence {
                                start: 0,
