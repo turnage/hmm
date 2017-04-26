@@ -1,10 +1,11 @@
+use std::fmt::Debug;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::hash::Hash;
 
 use base::{Model, Starter, Emitter, Transor};
 
-pub fn discrete<S: Copy + Eq + Hash, O: Copy + Eq + Hash>
+pub fn discrete<S: Debug + Copy + Eq + Hash, O: Debug + Copy + Eq + Hash>
     (paths: &Vec<Vec<(S, O)>>)
      -> Model<S, O, HashMap<S, f64>, HashMap<S, HashMap<O, f64>>, HashMap<S, HashMap<S, f64>>> {
     let mut train = Discrete::new();
@@ -21,7 +22,7 @@ struct Discrete<S: Copy, O: Copy> {
     trans: HashMap<S, HashMap<S, f64>>,
 }
 
-impl<S: Copy + Eq + Hash, O: Copy + Eq + Hash> Discrete<S, O> {
+impl<S: Debug + Copy + Eq + Hash, O: Debug + Copy + Eq + Hash> Discrete<S, O> {
     fn new() -> Self {
         Discrete {
             start: HashMap::new(),
@@ -80,17 +81,17 @@ impl<S: Copy + Eq + Hash, O: Copy + Eq + Hash> Discrete<S, O> {
     }
 }
 
-impl<S: Copy + Eq + Hash> Starter<S> for HashMap<S, f64> {
+impl<S: Debug + Copy + Eq + Hash> Starter<S> for HashMap<S, f64> {
     fn startp(&self, s: S) -> Result<f64, String> {
         if let Some(&p) = self.get(&s) {
             Ok(p)
         } else {
-            Err(format!("state not found"))
+            Ok(0f64)
         }
     }
 }
 
-impl<S: Copy + Eq + Hash, O: Copy + Eq + Hash> Emitter<S, O> for HashMap<S, HashMap<O, f64>> {
+impl<S: Debug + Copy + Eq + Hash, O: Debug + Copy + Eq + Hash> Emitter<S, O> for HashMap<S, HashMap<O, f64>> {
     fn emitp(&self, s: S, o: O) -> Result<f64, String> {
         if let Some(dist) = self.get(&s) {
             if let Some(&p) = dist.get(&o) {
@@ -104,7 +105,7 @@ impl<S: Copy + Eq + Hash, O: Copy + Eq + Hash> Emitter<S, O> for HashMap<S, Hash
     }
 }
 
-impl<S: Copy + Eq + Hash> Transor<S> for HashMap<S, HashMap<S, f64>> {
+impl<S: Debug + Copy + Eq + Hash> Transor<S> for HashMap<S, HashMap<S, f64>> {
     fn transp(&self, a: S, b: S) -> Result<f64, String> {
         if let Some(dist) = self.get(&a) {
             if let Some(&p) = dist.get(&b) {
