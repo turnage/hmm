@@ -6,13 +6,19 @@ use std::hash::Hash;
 use base::{Model, Starter, Emitter, Transor};
 
 pub fn discrete<S: Debug + Copy + Eq + Hash, O: Debug + Copy + Eq + Hash>
-    (paths: &Vec<Vec<(S, O)>>)
+    (paths: &Vec<Vec<(S, O)>>,
+     trans_tunings: Option<Vec<((S, S), f64)>>)
      -> Model<S, O, HashMap<S, f64>, HashMap<S, HashMap<O, f64>>, HashMap<S, HashMap<S, f64>>> {
     let mut train = Discrete::new();
     for path in paths.iter() {
         train.observe_state_path(path);
     }
     train.stochast();
+    if let Some(tunings) = trans_tunings {
+        for ((s1, s2), p) in tunings {
+            *train.trans.entry(s1).or_insert(HashMap::new()).entry(s2).or_insert(p) = p
+        }
+    }
     train.model()
 }
 
